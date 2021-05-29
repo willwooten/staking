@@ -11,6 +11,9 @@ packages/hardhat/deployments
 packages/react-app/src/contracts/*
 !packages/react-app/src/contracts/contracts.js
 packages/hardhat/cache
+packages/hardhat/contracts/test.sol
+packages/hardhat/contracts/TestExamples.sol
+**/out
 
 docker/**/data
 

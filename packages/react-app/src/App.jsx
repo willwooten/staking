@@ -318,7 +318,6 @@ function App(props) {
                   );
                 }}
               />
-              <Divider />
             </div>
           </Route>
           <Route path="/contracts">
