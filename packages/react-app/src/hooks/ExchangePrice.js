@@ -1,15 +1,15 @@
-import { Fetcher, Route, Token, WETH } from "@uniswap/sdk";
-import { usePoller } from "eth-hooks";
 import { useState } from "react";
+import { Token, WETH, Fetcher, Route } from "@uniswap/sdk";
+import { usePoller } from "eth-hooks";
 
 export default function useExchangePrice(targetNetwork, mainnetProvider, pollTime) {
   const [price, setPrice] = useState(0);
 
   const pollPrice = () => {
     async function getPrice() {
-      if (targetNetwork.price) {
-        setPrice(targetNetwork.price);
-      } else {
+      if(targetNetwork.price){
+        setPrice(targetNetwork.price)
+      }else{
         const DAI = new Token(
           mainnetProvider.network ? mainnetProvider.network.chainId : 1,
           "0x6B175474E89094C44Da98b954EedeAC495271d0F",
@@ -22,7 +22,7 @@ export default function useExchangePrice(targetNetwork, mainnetProvider, pollTim
     }
     getPrice();
   };
-  usePoller(pollPrice, pollTime || 9777);
+  usePoller(pollPrice, pollTime || 39999);
 
   return price;
 }

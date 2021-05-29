@@ -1,29 +1,31 @@
-import { StaticJsonRpcProvider, Web3Provider } from "@ethersproject/providers";
-import { formatEther, parseEther } from "@ethersproject/units";
-import WalletConnectProvider from "@walletconnect/web3-provider";
-import { Alert, Button, Col, Menu, Row } from "antd";
-import "antd/dist/antd.css";
-import { useUserAddress } from "eth-hooks";
 import React, { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Link, Route, Switch } from "react-router-dom";
-import Web3Modal from "web3modal";
+import { BrowserRouter, Switch, Route } from "react-router-dom";
+import "antd/dist/antd.css";
+import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import "./App.css";
-import { Account, Contract, Faucet, GasGauge, Header, Ramp, ThemeSwitch } from "./components";
-import { DAI_ABI, DAI_ADDRESS, INFURA_ID, NETWORK, NETWORKS } from "./constants";
-import { Transactor } from "./helpers";
+import { Row, Col, Alert, List, Progress, Steps, Divider, Space, Tooltip, Button} from "antd";
+import Web3Modal from "web3modal";
+import WalletConnectProvider from "@walletconnect/web3-provider";
+import { useUserAddress } from "eth-hooks";
 import {
-  useBalance,
+  useExchangePrice,
+  useGasPrice,
+  useUserProvider,
   useContractLoader,
   useContractReader,
   useEventListener,
-  useExchangePrice,
+  useBalance,
   useExternalContractLoader,
-  useGasPrice,
-  useOnBlock,
-  useUserProvider,
 } from "./hooks";
-// import Hints from "./Hints";
-import { ExampleUI, Hints, Subgraph } from "./views";
+import { Header, Account, Faucet, Ramp, Contract, GasGauge, Balance, Address, CountDownTimer } from "./components";
+import { Transactor } from "./helpers";
+import { formatEther, parseEther } from "@ethersproject/units";
+import { INFURA_ID, NETWORK, NETWORKS } from "./constants";
+import { PartitionOutlined, FireOutlined, FlagOutlined, FireFilled, ClockCircleFilled, UnlockFilled, RocketFilled, SyncOutlined, BankFilled} from "@ant-design/icons";
+
+const humanizeDuration = require("humanize-duration");
+const { Step } = Steps;
+
 /*
     Welcome to 🏗 scaffold-eth !
 
@@ -38,13 +40,13 @@ import { ExampleUI, Hints, Subgraph } from "./views";
     (this is your connection to the main Ethereum network for ENS etc.)
 
 
-    🌏 EXTERNAL CONTRACTS:
+    📡 EXTERNAL CONTRACTS:
     You can also bring in contract artifacts in `constants.js`
     (and then use the `useExternalContractLoader()` hook!)
 */
 
 /// 📡 What chain are your contracts deployed to?
-const targetNetwork = NETWORKS.localhost; // <------- select your target frontend network (localhost, rinkeby, xdai, mainnet)
+const targetNetwork = NETWORKS["localhost"]; // <------- select your target frontend network (localhost, rinkeby, xdai, mainnet)
 
 // 😬 Sorry for all the console logging
 const DEBUG = true;
@@ -53,22 +55,376 @@ const DEBUG = true;
 if (DEBUG) console.log("📡 Connecting to Mainnet Ethereum");
 // const mainnetProvider = getDefaultProvider("mainnet", { infura: INFURA_ID, etherscan: ETHERSCAN_KEY, quorum: 1 });
 // const mainnetProvider = new InfuraProvider("mainnet",INFURA_ID);
-//
-// attempt to connect to our own scaffold eth rpc and if that fails fall back to infura...
-// Using StaticJsonRpcProvider as the chainId won't change see https://github.com/ethers-io/ethers.js/issues/901
-const scaffoldEthProvider = new StaticJsonRpcProvider("https://rpc.scaffoldeth.io:48544");
-const mainnetInfura = new StaticJsonRpcProvider("https://mainnet.infura.io/v3/" + INFURA_ID);
-// ( ⚠️ Getting "failed to meet quorum" errors? Check your INFURA_I
+const mainnetProvider = new JsonRpcProvider("https://mainnet.infura.io/v3/" + INFURA_ID);
+// ( ⚠️ Getting "failed to meet quorum" errors? Check your INFURA_ID)
 
 // 🏠 Your local provider is usually pointed at your local blockchain
 const localProviderUrl = targetNetwork.rpcUrl;
 // as you deploy to other networks you can set REACT_APP_PROVIDER=https://dai.poa.network in packages/react-app/.env
 const localProviderUrlFromEnv = process.env.REACT_APP_PROVIDER ? process.env.REACT_APP_PROVIDER : localProviderUrl;
 if (DEBUG) console.log("🏠 Connecting to provider:", localProviderUrlFromEnv);
-const localProvider = new StaticJsonRpcProvider(localProviderUrlFromEnv);
+const localProvider = new JsonRpcProvider(localProviderUrlFromEnv);
 
 // 🔭 block explorer URL
 const blockExplorer = targetNetwork.blockExplorer;
+
+let metamaskConnected = false;
+
+const addressAustin = "austingriffith.eth";
+const addressWill = "0xa83dB35caB0C7Fb667709A80D064F640249634Bd";
+
+function App(props) {
+  const [injectedProvider, setInjectedProvider] = useState();
+  /* 💵 This hook will get the price of ETH from 🦄 Uniswap: */
+  const price = useExchangePrice(targetNetwork, mainnetProvider, process.env.REACT_APP_POLLING);
+
+  /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
+  const gasPrice = useGasPrice(targetNetwork, "fast", process.env.REACT_APP_POLLING);
+  // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
+  const userProvider = useUserProvider(injectedProvider, localProvider);
+  const address = useUserAddress(userProvider);
+  if (DEBUG) console.log("👩‍💼 selected address:", address);
+
+  // You can warn the user if you would like them to be on a specific network
+  let localChainId = localProvider && localProvider._network && localProvider._network.chainId;
+  if (DEBUG) console.log("🏠 localChainId", localChainId);
+
+  let selectedChainId = userProvider && userProvider._network && userProvider._network.chainId;
+  if (DEBUG) console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
+
+  // For more hooks, check out 🔗eth-hooks at: https://www.npmjs.com/package/eth-hooks
+
+  // The transactor wraps transactions and provides notificiations
+  const tx = Transactor(userProvider, gasPrice);
+
+  // Faucet Tx can be used to send funds from the faucet
+  const faucetTx = Transactor(localProvider, gasPrice);
+
+  // Load in your local 📝 contract and read a value from it:
+  const readContracts = useContractLoader(localProvider);
+  if (DEBUG) console.log("📝 readContracts", readContracts);
+
+  // If you want to make 🔐 write transactions to your contracts, use the userProvider:
+  const writeContracts = useContractLoader(userProvider);
+  if (DEBUG) console.log("🔐 writeContracts", writeContracts);
+
+  //keep track of contract balance to know how much has been staked total:
+  const stakerContractBalance = useBalance(
+    localProvider,
+    readContracts && readContracts.Staker.address,
+    process.env.REACT_APP_POLLING,
+  );
+  const stakerContractBalanceEth = stakerContractBalance && formatEther(stakerContractBalance);
+  if (DEBUG) console.log("💵 stakerContractBalance", stakerContractBalance);
+
+  //keep track of total 'threshold' needed of ETH
+  const threshold = useContractReader(readContracts, "Staker", "threshold", "", process.env.REACT_APP_POLLING);
+  const thresholdEth = threshold && formatEther(threshold);
+  console.log("💵 threshold:", threshold);
+
+  // keep track of a variable from the contract in the local React state:
+  const balanceStaked = useContractReader(
+    readContracts,
+    "Staker",
+    "balances",
+    [address],
+    process.env.REACT_APP_POLLING,
+  );
+  const balanceStakedEth = balanceStaked && formatEther(balanceStaked);
+  console.log("💸 balanceStaked:", balanceStaked);
+
+  //📟 Listen for broadcast events
+  const stakeEvents = useEventListener(readContracts, "Staker", "Stake", localProvider, process.env.REACT_APP_POLLING);
+  console.log("📟 stake events:", stakeEvents);
+
+  // keep track of a variable from the contract in the local React state:
+  const timeLeft = useContractReader(readContracts, "Staker", "timeLeft", "", process.env.REACT_APP_POLLING);
+  console.log("⏳ timeLeft:", timeLeft && timeLeft.toNumber());
+
+  const complete = useContractReader(
+    readContracts,
+    "ExampleExternalContract",
+    "completed",
+    "",
+    process.env.REACT_APP_POLLING,
+  );
+  console.log("✅ complete:", complete);
+  const fail = useContractReader(readContracts, "Staker", "failed", "", process.env.REACT_APP_POLLING);
+  console.log("✅ fail:", fail);
+
+  const exampleExternalContractBalance = useBalance(
+    localProvider,
+    readContracts && readContracts.ExampleExternalContract.address,
+    process.env.REACT_APP_POLLING,
+  );
+  if (DEBUG) console.log("💵 exampleExternalContractBalance", exampleExternalContractBalance);
+
+  let completeDisplay = "";
+  let checkpointDisplay = "";
+  if (complete) {
+    completeDisplay = (
+      <div style={{ margin: 25, padding: 25, fontWeight: "bolder", borderRadius: 12 }} class="grad_freshmilk"> 
+      STAKING EXECUTED ON CONTRACT<br></br>
+      <Balance balance={exampleExternalContractBalance} fontSize={64} /> ETH staked!
+      </div>
+    );
+    checkpointDisplay = "staking goal reached!";
+  } else {
+    checkpointDisplay = timeLeft && timeLeft == 0 ? "please click execute to complete staking." : "";
+  }
+
+  if (fail == true) {
+    checkpointDisplay = "staking goal not reached: user can withdraw their funds";
+  }
+
+  let timeLeftDisplay = "";
+  if (timeLeft) {
+    timeLeftDisplay = <CountDownTimer totalSeconds={timeLeft.toNumber()} />;
+  }
+
+  let networkDisplay = "";
+  if (localChainId && selectedChainId && localChainId != selectedChainId) {
+    networkDisplay = (
+      <div style={{ zIndex: 2, position: "absolute", right: 0, top: 60, padding: 16 }}>
+        <Alert
+          message={"⚠️ Wrong Network"}
+          description={
+            <div>
+              You have <b>{NETWORK(selectedChainId).name}</b> selected and you need to be on{" "}
+              <b>{NETWORK(localChainId).name}</b>.
+            </div>
+          }
+          type="error"
+          closable={false}
+        />
+      </div>
+    );
+  } else {
+    networkDisplay = (
+      <div style={{ zIndex: 2, position: "absolute", right: 154, top: 28, padding: 16, color: targetNetwork.color }}>
+        {targetNetwork.name}
+      </div>
+    );
+  }
+
+  const loadWeb3Modal = useCallback(async () => {
+    const provider = await web3Modal.connect();
+    setInjectedProvider(new Web3Provider(provider));
+    metamaskConnected = true;
+  }, [setInjectedProvider]);
+
+  useEffect(() => {
+    if (web3Modal.cachedProvider) {
+      loadWeb3Modal();
+    }
+  }, [loadWeb3Modal]);
+
+  const [route, setRoute] = useState();
+  useEffect(() => {
+    setRoute(window.location.pathname);
+  }, [setRoute]);
+
+  return (
+    <div className="App bottomAnim grad_glasswater">
+      {/* ✏️ Edit the header and change the title to your project name */}
+      <Header />
+      {networkDisplay}
+      <BrowserRouter>
+        <Switch>
+          <Route exact path="/">
+            <div style={{ padding: 8, marginTop: 32}}>
+              <Steps direction="horizontal">
+                <Step
+                  title="NETWORK"
+                  description="please connect to kovan with your wallet"
+                  status={metamaskConnected ? "finish" : "process"}
+                  icon={<PartitionOutlined />}
+                />
+                <Step 
+                  title="STAKE"
+                  icon={<FireOutlined />} 
+                  description="contract requires staking at least 1 ether" 
+                  status={balanceStaked > 0 ? "finish" : "wait"} />
+                <Step
+                  title="CHECKPOINT"
+                  icon={<FlagOutlined />}
+                  description={checkpointDisplay}
+                  status={timeLeft == 0 ? (fail == true || complete == true ? "finish" : "process") : "wait"}
+                />
+              </Steps>
+            </div>
+            <div>
+            <br></br>
+            <Button icon={<FireFilled />} shape='round' size='large' attached='left' onClick={() => {
+                      tx(writeContracts.Staker.stake({ value: parseEther("0.1") }));
+                    }}>STAKE 0.1 ETH</Button>
+            <Button icon={<RocketFilled />} shape='round' size='large' attached='left' onClick={() => {
+                      tx(writeContracts.Staker.stake({ value: parseEther("0.5") }));
+                    }}>STAKE 0.5 ETH</Button>
+            <Button icon={<BankFilled />} shape='round' size='large' attached='right' onClick={() => {
+                      tx(writeContracts.Staker.execute());
+                    }}>EXECUTE</Button>
+            <Button icon={<UnlockFilled />} shape='round' size='large' attached='right' onClick={() => {
+                      tx(writeContracts.Staker.withdraw(address));
+                    }}>WITHDRAW</Button>
+            <Button icon={<SyncOutlined size='48px' spin='true'/>} shape='round' size='large' attached='right' onClick={() => {
+                    tx(writeContracts.Staker.reStart(120, 1));
+                    }}>RESTART</Button>
+                    <br></br>
+            you are currently staking: <Balance balance={balanceStaked} fontSize={64} />eth<br></br>
+            </div>
+            {completeDisplay}
+            <div style={{ margin: 10, padding: 25, fontWeight: "bolder", borderRadius: 20 }} class="grad_deeprelief">
+              <h2>COUNTDOWN</h2><ClockCircleFilled />
+              {timeLeftDisplay}
+            </div>
+            <div style={{ margin: 10, padding: 25, fontWeight: "bolder", borderRadius: 12 }}>
+              <h3>PROGRESS TOWARDS STAKING GOAL</h3>
+              <Progress percent={(stakerContractBalanceEth * 100) / thresholdEth}
+                format={() => `${stakerContractBalanceEth}/${thresholdEth}`} status="active"/>
+              {/* <Progress
+                type="circle"
+                percent={(stakerContractBalanceEth * 100) / thresholdEth}
+                format={() => `${stakerContractBalanceEth}/${thresholdEth}`}
+              /> */}
+            </div>
+            <div
+              style={{
+                margin: 10,
+                padding: 25,
+                fontWeight: "bolder",
+                borderRadius: 12,
+              }}
+              class="grad_deeprelief"
+            >
+              <h2>STAKE EVENTS</h2>
+
+              <List
+                dataSource={stakeEvents}
+                renderItem={item => {
+                  return (
+                    <List.Item key={item[0] + item[1] + item.blockNumber}>
+                      <Space>
+                        ✴️
+                        <Address
+                          value={item[0]}
+                          // ensProvider={mainnetProvider}
+                          fontSize={16}
+                        />
+                        <Balance balance={item[1]} />
+                      </Space>
+                      ✴️
+                    </List.Item>
+                  );
+                }}
+              />
+              <Divider />
+            </div>
+          </Route>
+          <Route path="/contracts">
+            <Contract
+              name="Staker"
+              signer={userProvider.getSigner()}
+              provider={localProvider}
+              address={address}
+              blockExplorer={blockExplorer}
+            />
+            <Contract
+              name="ExampleExternalContract"
+              signer={userProvider.getSigner()}
+              provider={localProvider}
+              address={address}
+              blockExplorer={blockExplorer}
+            />
+          </Route>
+        </Switch>
+      </BrowserRouter>
+
+      {/* 👨‍💼 Your account is in the top right with a wallet at connect options */}
+      <div style={{ position: "fixed", textAlign: "right", right: 0, top: 0, padding: 10, color: "#fff" }}>
+        <Account
+          address={address}
+          localProvider={localProvider}
+          userProvider={userProvider}
+          // mainnetProvider={mainnetProvider}
+          // price={price}
+          web3Modal={web3Modal}
+          loadWeb3Modal={loadWeb3Modal}
+          logoutOfWeb3Modal={logoutOfWeb3Modal}
+          blockExplorer={blockExplorer}
+        />
+        {/*faucetHint*/}
+      </div>
+
+      <div style={{ padding: 30, opacity: 0.8 }}>
+        created by &nbsp;
+        <Address value={addressAustin} ensProvider={mainnetProvider} fontSize={16} />
+        <br />
+        developed by &nbsp;
+        <Address value={addressWill} ensProvider={mainnetProvider} fontSize={16} />
+      </div>
+
+      <div style={{ marginTop: 20, opacity: 0.8 }}>
+        <a
+          target="_blank"
+          style={{ padding: 10, color: "#fff" }}
+          href="https://github.com/austintgriffith/scaffold-eth"
+        >
+         <Tooltip title="scaffold-eth">🧰  made with scaffold-eth</Tooltip> 
+        </a>
+        <br />
+        <a
+          target="_blank"
+          style={{ padding: 10, color: "#fff" }}
+          href="https://dapp.tools/"
+        >
+         <Tooltip title="dapptools">🐛  debugged with DappTools</Tooltip> 
+        </a>
+        <a
+          target="_blank"
+          style={{ padding: 10, color: "#fff" }}
+          href="https://github.com/harryranakl/scaffold-eth-decentralized-staking"
+        >
+          <Tooltip title="github">🎯 check out my github
+          </Tooltip>
+        </a> 
+      </div>
+
+      {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
+      <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 10, padding: 10 }}>
+        <Row align="middle" gutter={[4, 4]}>
+          <Col span={14}>
+            <Ramp price={price} address={address} networks={NETWORKS} />
+          </Col>
+
+          <Col span={10} style={{ textAlign: "center", opacity: 0.8 }}>
+            <GasGauge gasPrice={gasPrice} />
+          </Col>
+        </Row>
+
+        <Row align="middle" gutter={[4, 4]}>
+          <Col span={24}>
+            {
+              /*  if the local provider has a signer, let's show the faucet:  */
+              localProvider &&
+              localProvider.connection &&
+              localProvider.connection.url &&
+              localProvider.connection.url.indexOf(window.location.hostname) >= 0 &&
+              !process.env.REACT_APP_PROVIDER &&
+              price > 1 ? (
+                <Faucet
+                  localProvider={localProvider}
+                />
+              ) : (
+                ""
+              )
+            }
+          </Col>
+        </Row>
+      </div>
+    </div>
+  );
+}
 
 /*
   Web3 modal helps us "connect" external wallets:
@@ -88,420 +444,17 @@ const web3Modal = new Web3Modal({
 
 const logoutOfWeb3Modal = async () => {
   await web3Modal.clearCachedProvider();
+  metamaskConnected = false;
   setTimeout(() => {
     window.location.reload();
   }, 1);
 };
 
-function App(props) {
-  const mainnetProvider = scaffoldEthProvider && scaffoldEthProvider._network ? scaffoldEthProvider : mainnetInfura;
-
-  const [injectedProvider, setInjectedProvider] = useState();
-  /* 💵 This hook will get the price of ETH from 🦄 Uniswap: */
-  const price = useExchangePrice(targetNetwork, mainnetProvider);
-
-  /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
-  const gasPrice = useGasPrice(targetNetwork, "fast");
-  // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
-  const userProvider = useUserProvider(injectedProvider, localProvider);
-  const address = useUserAddress(userProvider);
-
-  // You can warn the user if you would like them to be on a specific network
-  const localChainId = localProvider && localProvider._network && localProvider._network.chainId;
-  const selectedChainId = userProvider && userProvider._network && userProvider._network.chainId;
-
-  // For more hooks, check out 🔗eth-hooks at: https://www.npmjs.com/package/eth-hooks
-
-  // The transactor wraps transactions and provides notificiations
-  const tx = Transactor(userProvider, gasPrice);
-
-  // Faucet Tx can be used to send funds from the faucet
-  const faucetTx = Transactor(localProvider, gasPrice);
-
-  // 🏗 scaffold-eth is full of handy hooks like this one to get your balance:
-  const yourLocalBalance = useBalance(localProvider, address);
-
-  // Just plug in different 🛰 providers to get your balance on different chains:
-  const yourMainnetBalance = useBalance(mainnetProvider, address);
-
-  // Load in your local 📝 contract and read a value from it:
-  const readContracts = useContractLoader(localProvider);
-
-  // If you want to make 🔐 write transactions to your contracts, use the userProvider:
-  const writeContracts = useContractLoader(userProvider);
-
-  // EXTERNAL CONTRACT EXAMPLE:
-  //
-  // If you want to bring in the mainnet DAI contract it would look like:
-  const mainnetDAIContract = useExternalContractLoader(mainnetProvider, DAI_ADDRESS, DAI_ABI);
-
-  // If you want to call a function on a new block
-  useOnBlock(mainnetProvider, () => {
-    console.log(`⛓ A new mainnet block is here: ${mainnetProvider._lastBlockNumber}`);
-  });
-
-  // Then read your DAI balance like:
-  const myMainnetDAIBalance = useContractReader({ DAI: mainnetDAIContract }, "DAI", "balanceOf", [
-    "0x34aA3F359A9D614239015126635CE7732c18fDF3",
-  ]);
-
-  // keep track of a variable from the contract in the local React state:
-  const purpose = useContractReader(readContracts, "YourContract", "purpose");
-
-  // 📟 Listen for broadcast events
-  const setPurposeEvents = useEventListener(readContracts, "YourContract", "SetPurpose", localProvider, 1);
-
-  /*
-  const addressFromENS = useResolveName(mainnetProvider, "austingriffith.eth");
-  console.log("🏷 Resolved austingriffith.eth as:",addressFromENS)
-  */
-
-  //
-  // 🧫 DEBUG 👨🏻‍🔬
-  //
-  useEffect(() => {
-    if (
-      DEBUG &&
-      mainnetProvider &&
-      address &&
-      selectedChainId &&
-      yourLocalBalance &&
-      yourMainnetBalance &&
-      readContracts &&
-      writeContracts &&
-      mainnetDAIContract
-    ) {
-      console.log("_____________________________________ 🏗 scaffold-eth _____________________________________");
-      console.log("🌎 mainnetProvider", mainnetProvider);
-      console.log("🏠 localChainId", localChainId);
-      console.log("👩‍💼 selected address:", address);
-      console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
-      console.log("💵 yourLocalBalance", yourLocalBalance ? formatEther(yourLocalBalance) : "...");
-      console.log("💵 yourMainnetBalance", yourMainnetBalance ? formatEther(yourMainnetBalance) : "...");
-      console.log("📝 readContracts", readContracts);
-      console.log("🌍 DAI contract on mainnet:", mainnetDAIContract);
-      console.log("🔐 writeContracts", writeContracts);
-    }
-  }, [
-    mainnetProvider,
-    address,
-    selectedChainId,
-    yourLocalBalance,
-    yourMainnetBalance,
-    readContracts,
-    writeContracts,
-    mainnetDAIContract,
-  ]);
-
-  let networkDisplay = "";
-  if (localChainId && selectedChainId && localChainId !== selectedChainId) {
-    const networkSelected = NETWORK(selectedChainId);
-    const networkLocal = NETWORK(localChainId);
-    if (selectedChainId === 1337 && localChainId === 31337) {
-      networkDisplay = (
-        <div style={{ zIndex: 2, position: "absolute", right: 0, top: 60, padding: 16 }}>
-          <Alert
-            message="⚠️ Wrong Network ID"
-            description={
-              <div>
-                You have <b>chain id 1337</b> for localhost and you need to change it to <b>31337</b> to work with
-                HardHat.
-                <div>(MetaMask -&gt; Settings -&gt; Networks -&gt; Chain ID -&gt; 31337)</div>
-              </div>
-            }
-            type="error"
-            closable={false}
-          />
-        </div>
-      );
-    } else {
-      networkDisplay = (
-        <div style={{ zIndex: 2, position: "absolute", right: 0, top: 60, padding: 16 }}>
-          <Alert
-            message="⚠️ Wrong Network"
-            description={
-              <div>
-                You have <b>{networkSelected && networkSelected.name}</b> selected and you need to be on{" "}
-                <b>{networkLocal && networkLocal.name}</b>.
-              </div>
-            }
-            type="error"
-            closable={false}
-          />
-        </div>
-      );
-    }
-  } else {
-    networkDisplay = (
-      <div style={{ zIndex: -1, position: "absolute", right: 154, top: 28, padding: 16, color: targetNetwork.color }}>
-        {targetNetwork.name}
-      </div>
-    );
-  }
-
-  const loadWeb3Modal = useCallback(async () => {
-    const provider = await web3Modal.connect();
-    setInjectedProvider(new Web3Provider(provider));
-  }, [setInjectedProvider]);
-
-  useEffect(() => {
-    if (web3Modal.cachedProvider) {
-      loadWeb3Modal();
-    }
-  }, [loadWeb3Modal]);
-
-  const [route, setRoute] = useState();
-  useEffect(() => {
-    setRoute(window.location.pathname);
-  }, [setRoute]);
-
-  let faucetHint = "";
-  const faucetAvailable = localProvider && localProvider.connection && targetNetwork.name === "localhost";
-
-  const [faucetClicked, setFaucetClicked] = useState(false);
-  if (
-    !faucetClicked &&
-    localProvider &&
-    localProvider._network &&
-    localProvider._network.chainId === 31337 &&
-    yourLocalBalance &&
-    formatEther(yourLocalBalance) <= 0
-  ) {
-    faucetHint = (
-      <div style={{ padding: 16 }}>
-        <Button
-          type="primary"
-          onClick={() => {
-            faucetTx({
-              to: address,
-              value: parseEther("0.01"),
-            });
-            setFaucetClicked(true);
-          }}
-        >
-          💰 Grab funds from the faucet ⛽️
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="App">
-      {/* ✏️ Edit the header and change the title to your project name */}
-      <Header />
-      {networkDisplay}
-      <BrowserRouter>
-        <Menu style={{ textAlign: "center" }} selectedKeys={[route]} mode="horizontal">
-          <Menu.Item key="/">
-            <Link
-              onClick={() => {
-                setRoute("/");
-              }}
-              to="/"
-            >
-              YourContract
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="/hints">
-            <Link
-              onClick={() => {
-                setRoute("/hints");
-              }}
-              to="/hints"
-            >
-              Hints
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="/exampleui">
-            <Link
-              onClick={() => {
-                setRoute("/exampleui");
-              }}
-              to="/exampleui"
-            >
-              ExampleUI
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="/mainnetdai">
-            <Link
-              onClick={() => {
-                setRoute("/mainnetdai");
-              }}
-              to="/mainnetdai"
-            >
-              Mainnet DAI
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="/subgraph">
-            <Link
-              onClick={() => {
-                setRoute("/subgraph");
-              }}
-              to="/subgraph"
-            >
-              Subgraph
-            </Link>
-          </Menu.Item>
-        </Menu>
-
-        <Switch>
-          <Route exact path="/">
-            {/*
-                🎛 this scaffolding is full of commonly used components
-                this <Contract/> component will automatically parse your ABI
-                and give you a form to interact with it locally
-            */}
-
-            <Contract
-              name="YourContract"
-              signer={userProvider.getSigner()}
-              provider={localProvider}
-              address={address}
-              blockExplorer={blockExplorer}
-            />
-
-            {/* uncomment for a second contract:
-            <Contract
-              name="SecondContract"
-              signer={userProvider.getSigner()}
-              provider={localProvider}
-              address={address}
-              blockExplorer={blockExplorer}
-            />
-            */}
-
-            {/* Uncomment to display and interact with an external contract (DAI on mainnet):
-            <Contract
-              name="DAI"
-              customContract={mainnetDAIContract}
-              signer={userProvider.getSigner()}
-              provider={mainnetProvider}
-              address={address}
-              blockExplorer={blockExplorer}
-            />
-            */}
-          </Route>
-          <Route path="/hints">
-            <Hints
-              address={address}
-              yourLocalBalance={yourLocalBalance}
-              mainnetProvider={mainnetProvider}
-              price={price}
-            />
-          </Route>
-          <Route path="/exampleui">
-            <ExampleUI
-              address={address}
-              userProvider={userProvider}
-              mainnetProvider={mainnetProvider}
-              localProvider={localProvider}
-              yourLocalBalance={yourLocalBalance}
-              price={price}
-              tx={tx}
-              writeContracts={writeContracts}
-              readContracts={readContracts}
-              purpose={purpose}
-              setPurposeEvents={setPurposeEvents}
-            />
-          </Route>
-          <Route path="/mainnetdai">
-            <Contract
-              name="DAI"
-              customContract={mainnetDAIContract}
-              signer={userProvider.getSigner()}
-              provider={mainnetProvider}
-              address={address}
-              blockExplorer="https://etherscan.io/"
-            />
-          </Route>
-          <Route path="/subgraph">
-            <Subgraph
-              subgraphUri={props.subgraphUri}
-              tx={tx}
-              writeContracts={writeContracts}
-              mainnetProvider={mainnetProvider}
-            />
-          </Route>
-        </Switch>
-      </BrowserRouter>
-
-      <ThemeSwitch />
-
-      {/* 👨‍💼 Your account is in the top right with a wallet at connect options */}
-      <div style={{ position: "fixed", textAlign: "right", right: 0, top: 0, padding: 10 }}>
-        <Account
-          address={address}
-          localProvider={localProvider}
-          userProvider={userProvider}
-          mainnetProvider={mainnetProvider}
-          price={price}
-          web3Modal={web3Modal}
-          loadWeb3Modal={loadWeb3Modal}
-          logoutOfWeb3Modal={logoutOfWeb3Modal}
-          blockExplorer={blockExplorer}
-        />
-        {faucetHint}
-      </div>
-
-      {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
-      <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
-        <Row align="middle" gutter={[4, 4]}>
-          <Col span={8}>
-            <Ramp price={price} address={address} networks={NETWORKS} />
-          </Col>
-
-          <Col span={8} style={{ textAlign: "center", opacity: 0.8 }}>
-            <GasGauge gasPrice={gasPrice} />
-          </Col>
-          <Col span={8} style={{ textAlign: "center", opacity: 1 }}>
-            <Button
-              onClick={() => {
-                window.open("https://t.me/joinchat/KByvmRe5wkR-8F_zz6AjpA");
-              }}
-              size="large"
-              shape="round"
-            >
-              <span style={{ marginRight: 8 }} role="img" aria-label="support">
-                💬
-              </span>
-              Support
-            </Button>
-          </Col>
-        </Row>
-
-        <Row align="middle" gutter={[4, 4]}>
-          <Col span={24}>
-            {
-              /*  if the local provider has a signer, let's show the faucet:  */
-              faucetAvailable ? (
-                <Faucet localProvider={localProvider} price={price} ensProvider={mainnetProvider} />
-              ) : (
-                ""
-              )
-            }
-          </Col>
-        </Row>
-      </div>
-    </div>
-  );
-}
-
-/* eslint-disable */
 window.ethereum &&
   window.ethereum.on("chainChanged", chainId => {
-    web3Modal.cachedProvider &&
-      setTimeout(() => {
-        window.location.reload();
-      }, 1);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1);
   });
-
-window.ethereum &&
-  window.ethereum.on("accountsChanged", accounts => {
-    web3Modal.cachedProvider &&
-      setTimeout(() => {
-        window.location.reload();
-      }, 1);
-  });
-/* eslint-enable */
 
 export default App;

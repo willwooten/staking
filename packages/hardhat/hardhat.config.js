@@ -3,9 +3,6 @@ const fs = require("fs");
 const chalk = require("chalk");
 
 require("@nomiclabs/hardhat-waffle");
-require("@tenderly/hardhat-tenderly")
-
-require("@nomiclabs/hardhat-etherscan");
 
 const { isAddress, getAddress, formatUnits, parseUnits } = utils;
 
@@ -51,15 +48,15 @@ module.exports = {
       */
     },
     rinkeby: {
-      url: "https://rinkeby.infura.io/v3/460f40a260564ac4a4f4b3fffb032dad", //<---- YOUR INFURA ID! (or it won't work)
+      url: "https://rinkeby.infura.io/v3/c387598aa08b48ebb6dc3296f6c198b7", //<---- YOUR INFURA ID! (or it won't work)
       accounts: {
-        mnemonic: mnemonic(),
+        mnemonic: mnemonic(''),
       },
     },
     kovan: {
-      url: "https://kovan.infura.io/v3/460f40a260564ac4a4f4b3fffb032dad", //<---- YOUR INFURA ID! (or it won't work)
+      url: "https://kovan.infura.io/v3/c387598aa08b48ebb6dc3296f6c198b7", //<---- YOUR INFURA ID! (or it won't work)
       accounts: {
-        mnemonic: mnemonic(),
+        mnemonic: mnemonic(''),
       },
     },
     mainnet: {
@@ -98,7 +95,16 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: "0.7.6",
+        version: "0.8.0",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200
+          }
+        }
+      },
+      {
+        version: "0.5.5",
         settings: {
           optimizer: {
             enabled: true,
@@ -118,14 +124,9 @@ module.exports = {
     ],
 
   },
-  etherscan: {
-    // Your API key for Etherscan
-    // Obtain one at https://etherscan.io/
-    apiKey: "PSW8C433Q667DVEX5BCRMGNAH9FSGFZ7Q8"
-  }
 };
 
-const DEBUG = false;
+const DEBUG = true;
 
 function debug(text) {
   if (DEBUG) {
@@ -207,7 +208,7 @@ task("generate", "Create a mnemonic for builder deploys", async (_, { ethers }) 
   fs.writeFileSync("./mnemonic.txt", mnemonic.toString())
 });
 
-task("mineContractAddress", "Looks for a deployer account that will give leading zeros")
+task("mine", "Looks for a deployer account that will give leading zeros")
   .addParam("searchFor", "String to search for")
   .setAction(async (taskArgs, { network, ethers }) => {
 

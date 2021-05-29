@@ -1,3 +1,168 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Yanone+Kaffeesatz:wght@700&display=swap');
+
+body{ 
+  font-family: 'Yanone Kaffeesatz', sans-serif;
+  color: #fff;
+}
+
 .App {
   text-align: center;
+  color: #fff;
+}
+
+h2 {
+  color: #ffffff;
+}
+
+h3 {
+  color: #ffffff;
+}
+
+div {
+  color:rgb(255, 255, 255); 
+}
+
+a {
+  color:rgb(255, 255, 255); 
+}
+
+/* process logo */ 
+div.ant-steps-item-process span {
+  color:rgb(197, 195, 95);
+}
+
+.ant-steps-item-process > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-title {
+  color:rgb(197, 195, 95); 
+  font-size: 18pt;
+}
+
+.ant-steps-item-process > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-description {
+  color:rgb(197, 195, 95); 
+  font-size: 14pt;
+}
+
+/* waiting */
+div.ant-steps-item-wait {
+  color:rgba(255, 255, 255, 0.2); 
+  font-size: 18pt;
+}
+
+.ant-steps-item-wait > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-title {
+  color: rgb(255, 255, 255, 0.2); 
+  font-size: 18pt;
+}
+
+.ant-steps-item-wait > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-description {
+  color: rgb(255, 255, 255, 0.2); 
+  font-size: 14pt;
+}
+
+.ant-steps-item-finish span {
+  color: rgb(51, 175, 113);
+  font-size: 18pt;
+}
+
+.ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-title {
+  color: rgb(51, 175, 113);
+  font-size: 18pt;
+}
+
+.ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-content > .ant-steps-item-description {
+  color: rgb(51, 175, 113);
+  font-size: 14pt;
+}
+
+.bottomAnim {
+  border: none;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-position: bottom;
+  z-index: 1000;
+}
+@media (max-height: 700px) {
+  .bottomAnim {
+    background-size: auto 65%;
+    color:rgb(212, 212, 212);
+  }
+}
+
+.grad_glasswater{
+    background-image: repeating-radial-gradient(ellipse at left,rgb(44, 4, 59), rgb(7, 0, 34) 10%, rgb(28, 9, 53) 15%);
+    font-size: 18pt;
+}
+
+.grad_freshmilk{
+    background-image: linear-gradient(to top, #feada600 0%, #6b1d1d 100%);
+    font-size: 18pt;
+} /* success triggered */ 
+
+.grad_deeprelief{
+    background-image: linear-gradient(-225deg, #b670aa00 0%, #455774 50%, #3992a800 100%);
+    font-size: 18pt;
+} /* boxes */ 
+
+.grad_deeprelief h2 {
+  color:rgb(212, 212, 212);
+  font-size: 18pt;
+
+}
+
+/* stake enter amount button */
+button.ui {
+  color:rgb(41, 4, 35);
+}
+
+div.ui {
+  color:rgb(41, 4, 35);
+}
+
+div.App.bottomAnim.grad_glasswater {
+  color:rgb(212, 212, 212);
+  font-size: 18pt;
+}
+
+div.ant-steps-item div {
+  color:rgb(212, 212, 212);
+  font-size: 18pt;
+}
+
+div.ant-steps-item.ant-steps-item-process.ant-steps-item-custom.ant-steps-item-active {
+  color:rgb(212, 212, 212);
+  font-size: 18pt;
+}
+
+.ant-page-header-heading-title {
+  color:rgb(212, 212, 212);
+  font-size: 18pt;
+}
+
+span.ant-typography a {
+  color:rgb(255, 255, 255);
+  font-size: 18pt;
+}
+
+div.App a {
+  color:rgb(255, 255, 255);
+}
+
+/* .anticon.anticon-wallet svg{
+  color:rgb(255, 255, 255);
+} */
+
+span.anticon.anticon-copy svg{
+  color:rgb(255, 255, 255);
+}
+
+span.ant-typography a {
+  color:rgb(255, 255, 255);
+}
+
+.ant-input-suffix {
+  color:rgba(51, 9, 9, 0.24);
+}
+
+div.topright a {
+  color:rgb(255, 255, 255);
 }

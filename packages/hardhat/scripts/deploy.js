@@ -1,7 +1,7 @@
 /* eslint no-use-before-define: "warn" */
 const fs = require("fs");
 const chalk = require("chalk");
-const { config, ethers, tenderly, run } = require("hardhat");
+const { config, ethers } = require("hardhat");
 const { utils } = require("ethers");
 const R = require("ramda");
 
@@ -9,14 +9,19 @@ const main = async () => {
 
   console.log("\n\n 📡 Deploying...\n");
 
-  const yourContract = await deploy("YourContract") // <-- add in constructor args like line 19 vvvv
+  const exampleExternalContract = await deploy("ExampleExternalContract")
+  //kovan-0xdBCD66e49B0a1292830192515a11953AB5Ffa23e
 
-  //const yourContract = await ethers.getContractAt('YourContract', "0xaAC799eC2d00C013f1F11c37E654e59B0429DF6A") //<-- if you want to instantiate a version of a contract at a specific address!
+  const stakerContract = await deploy("Staker",[ exampleExternalContract.address ]) // <-- add in constructor args like line 16 vvvv
+  //kovan-0x6E1c9D51BB47f280e5BA60E4223b6be17f22D820
+
   //const secondContract = await deploy("SecondContract")
 
   // const exampleToken = await deploy("ExampleToken")
   // const examplePriceOracle = await deploy("ExamplePriceOracle")
   // const smartContractWallet = await deploy("SmartContractWallet",[exampleToken.address,examplePriceOracle.address])
+
+
 
   /*
   //If you want to send value to an address from the deployer
@@ -45,24 +50,6 @@ const main = async () => {
   */
 
 
-  //If you want to verify your contract on tenderly.co (see setup details in the scaffold-eth README!)
-  /*
-  await tenderlyVerify(
-    {contractName: "YourContract",
-     contractAddress: yourContract.address
-  })
-  */
-
-  // If you want to verify your contract on etherscan
-  /*
-  console.log(chalk.blue('verifying on etherscan'))
-  await run("verify:verify", {
-    address: yourContract.address,
-    // contract: "contracts/Example.sol:ExampleContract" // If you are inheriting from multiple contracts in yourContract.sol, you can specify which to verify
-    // constructorArguments: args // If your contract has constructor arguments, you can pass them as an array
-  })
-  */
-
   console.log(
     " 💾  Artifacts (address, abi, and args) saved to: ",
     chalk.blue("packages/hardhat/artifacts/"),
@@ -79,27 +66,12 @@ const deploy = async (contractName, _args = [], overrides = {}, libraries = {}) 
   const encoded = abiEncodeArgs(deployed, contractArgs);
   fs.writeFileSync(`artifacts/${contractName}.address`, deployed.address);
 
-  let extraGasInfo = ""
-  if(deployed&&deployed.deployTransaction){
-    const gasUsed = deployed.deployTransaction.gasLimit.mul(deployed.deployTransaction.gasPrice)
-    extraGasInfo = `${utils.formatEther(gasUsed)} ETH, tx hash ${deployed.deployTransaction.hash}`
-  }
-
   console.log(
     " 📄",
     chalk.cyan(contractName),
     "deployed to:",
-    chalk.magenta(deployed.address)
+    chalk.magenta(deployed.address),
   );
-  console.log(
-    " ⛽",
-    chalk.grey(extraGasInfo)
-  );
-
-  await tenderly.persistArtifacts({
-    name: contractName,
-    address: deployed.address
-  });
 
   if (!encoded || encoded.length <= 2) return deployed;
   fs.writeFileSync(`artifacts/${contractName}.args`, encoded.slice(2));
@@ -144,36 +116,6 @@ const readArgsFile = (contractName) => {
   }
   return args;
 };
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// If you want to verify on https://tenderly.co/
-const tenderlyVerify = async ({contractName, contractAddress}) => {
-
-  let tenderlyNetworks = ["kovan","goerli","mainnet","rinkeby","ropsten","matic","mumbai","xDai","POA"]
-  let targetNetwork = process.env.HARDHAT_NETWORK || config.defaultNetwork
-
-  if(tenderlyNetworks.includes(targetNetwork)) {
-    console.log(chalk.blue(` 📁 Attempting tenderly verification of ${contractName} on ${targetNetwork}`))
-
-    await tenderly.persistArtifacts({
-      name: contractName,
-      address: contractAddress
-    });
-
-    let verification = await tenderly.verify({
-        name: contractName,
-        address: contractAddress,
-        network: targetNetwork
-      })
-
-    return verification
-  } else {
-      console.log(chalk.grey(` 🧐 Contract verification not supported on ${targetNetwork}`))
-  }
-}
 
 main()
   .then(() => process.exit(0))

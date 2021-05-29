@@ -1,13 +1,13 @@
-import axios from "axios";
-import { usePoller } from "eth-hooks";
 import { useState } from "react";
+import { usePoller } from "eth-hooks";
+import axios from "axios";
 
-export default function useGasPrice(targetNetwork, speed) {
+export default function useGasPrice(targetNetwork,speed, pollTime) {
   const [gasPrice, setGasPrice] = useState();
   const loadGasPrice = async () => {
-    if (targetNetwork.gasPrice) {
+    if(targetNetwork.gasPrice){
       setGasPrice(targetNetwork.gasPrice);
-    } else {
+    }else{
       axios
         .get("https://ethgasstation.info/json/ethgasAPI.json")
         .then(response => {
@@ -20,6 +20,6 @@ export default function useGasPrice(targetNetwork, speed) {
     }
   };
 
-  usePoller(loadGasPrice, 39999);
+  usePoller(loadGasPrice, pollTime || 39999);
   return gasPrice;
 }

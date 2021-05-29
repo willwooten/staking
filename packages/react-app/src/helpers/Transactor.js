@@ -1,8 +1,8 @@
 import { hexlify } from "@ethersproject/bytes";
 import { parseUnits } from "@ethersproject/units";
 import { notification } from "antd";
+
 import Notify from "bnc-notify";
-import { BLOCKNATIVE_DAPPID } from "../constants";
 
 // this should probably just be renamed to "notifier"
 // it is basically just a wrapper around BlockNative's wonderful Notify.js
@@ -16,7 +16,7 @@ export default function Transactor(provider, gasPrice, etherscan) {
       const network = await provider.getNetwork();
       console.log("network", network);
       const options = {
-        dappId: BLOCKNATIVE_DAPPID, // GET YOUR OWN KEY AT https://account.blocknative.com
+        dappId: "0b58206a-f3c0-4701-a62f-73c7243e8c77", // GET YOUR OWN KEY AT https://account.blocknative.com
         system: "ethereum",
         networkId: network.chainId,
         // darkMode: Boolean, // (default: false)

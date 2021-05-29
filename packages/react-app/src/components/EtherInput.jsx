@@ -1,31 +1,14 @@
+import React, { useState, useEffect } from "react";
 import { Input } from "antd";
-import React, { useEffect, useState } from "react";
-
-// small change in useEffect, display currentValue if it's provided by user
 
 /*
-  ~ What it does? ~
-
-  Displays input field for ETH/USD amount, with an option to convert between ETH and USD
-
-  ~ How can I use? ~
-
-  <EtherInput
-    autofocus
-    price={price}
-    value=100
-    placeholder="Enter amount"
-    onChange={value => {
-      setAmount(value);
-    }}
-  />
-
-  ~ Features ~
-
-  - Provide price={price} of ether and easily convert between USD and ETH
-  - Provide value={value} to specify initial amount of ether
-  - Provide placeholder="Enter amount" value for the input
-  - Control input change by onChange={value => { setAmount(value);}}
+<EtherInput
+  price={props.price}
+  value={amount}
+  onChange={value => {
+    setAmount(value);
+  }}
+/>
 */
 
 export default function EtherInput(props) {
@@ -70,11 +53,13 @@ export default function EtherInput(props) {
     addonAfter = option("ETH 🔀");
   }
 
-  useEffect(() => {
-    if (!currentValue) {
-      setDisplay("");
+  useEffect(
+    ()=>{
+      if(!currentValue){
+        setDisplay("");
+      }
     }
-  }, [currentValue]);
+  ,[ currentValue ])
 
   return (
     <Input
@@ -86,17 +71,12 @@ export default function EtherInput(props) {
       onChange={async e => {
         const newValue = e.target.value;
         if (mode === "USD") {
-          const possibleNewValue = parseFloat(newValue);
-          if (possibleNewValue) {
-            const ethValue = possibleNewValue / props.price;
-            setValue(ethValue);
-            if (typeof props.onChange === "function") {
-              props.onChange(ethValue);
-            }
-            setDisplay(newValue);
-          } else {
-            setDisplay(newValue);
+          const ethValue = parseFloat(newValue) / props.price;
+          setValue(ethValue);
+          if (typeof props.onChange === "function") {
+            props.onChange(ethValue);
           }
+          setDisplay(newValue);
         } else {
           setValue(newValue);
           if (typeof props.onChange === "function") {
